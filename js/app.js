@@ -4,7 +4,8 @@
 
   const DATA = window.LSP_DATA;
   const PULAU = window.LSP_PULAU;
-  const REGIONS = window.LSP_REGIONS;
+  const META = window.LSP_META || {};
+  const UNKNOWN = "Belum diketahui";
   const JENIS = [
     { k: "P1", lbl: "LSP P1", desc: "Pihak pertama" },
     { k: "P2", lbl: "LSP P2", desc: "Pihak kedua" },
@@ -27,20 +28,32 @@
   const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-  // Hitung sisa masa berlaku & status
+  // Lengkapi field turunan: sisa masa berlaku, status, label wilayah yang belum diketahui
   DATA.forEach((d) => {
-    const end = new Date(d.tglBerakhir + "T00:00:00");
-    d.sisa = Math.round((end - TODAY) / DAY);
-    d.status = d.sisa < 0 ? "habis" : d.sisa <= SOON_DAYS ? "segera" : "aktif";
-    d._search = `${d.nama} ${d.noLisensi} ${d.sektor} ${d.kabkota} ${d.provinsi}`.toLowerCase();
+    d.pulau = d.pulau || UNKNOWN;
+    d.provinsi = d.provinsi || UNKNOWN;
+    d.kabkota = d.kabkota || UNKNOWN;
+    d.kecamatan = d.kecamatan || UNKNOWN;
+    d.jenis = d.jenis || "P3";
+    if (d.tglBerakhir) {
+      const end = new Date(d.tglBerakhir + "T00:00:00");
+      d.sisa = Math.round((end - TODAY) / DAY);
+      d.status = d.sisa < 0 ? "habis" : d.sisa <= SOON_DAYS ? "segera" : "aktif";
+    } else {
+      d.sisa = null;
+      d.status = /aktif/i.test(d.statusResmi) && !/tidak/i.test(d.statusResmi) ? "aktif" : "habis";
+    }
+    if (/tidak aktif/i.test(d.statusResmi || "")) d.status = "habis";
+    d._search = `${d.nama} ${d.noLisensi} ${d.alamat} ${d.kecamatan} ${d.kabkota} ${d.provinsi}`.toLowerCase();
   });
 
   const provToPulau = {};
-  REGIONS.forEach(([p, prov]) => (provToPulau[prov] = p));
+  DATA.forEach((d) => (provToPulau[d.provinsi] = d.pulau));
+  const uniq = (rows, k) => [...new Set(rows.map((d) => d[k]))].sort((a, b) => (a === UNKNOWN) - (b === UNKNOWN) || a.localeCompare(b, "id"));
 
   // ---------------- state ----------------
   const initial = () => ({
-    q: "", pulau: "", provinsi: "", kabkota: "", kecamatan: "", sektor: "",
+    q: "", pulau: "", provinsi: "", kabkota: "", kecamatan: "",
     jenis: new Set(["P1", "P2", "P3"]),
     status: new Set(["aktif", "segera", "habis"]),
     from: "", to: "", preset: "",
@@ -58,7 +71,6 @@
     if (skip !== "status" && !S.status.has(d.status)) return false;
     if (skip !== "status" && S.from && d.tglBerakhir < S.from) return false;
     if (skip !== "status" && S.to && d.tglBerakhir > S.to) return false;
-    if (skip !== "sektor" && S.sektor && d.sektor !== S.sektor) return false;
     return true;
   }
   const filtered = () => DATA.filter((d) => matches(d));
@@ -69,6 +81,7 @@
     const rows = DATA.filter((d) => matches(d, "pulau"));
     const c = countBy(rows, "pulau");
     const tabs = [["", "Semua pulau", rows.length], ...PULAU.map((p) => [p, p, c[p] || 0])];
+    if (DATA.some((d) => d.pulau === UNKNOWN)) tabs.push([UNKNOWN, "Lokasi belum diketahui", c[UNKNOWN] || 0]);
     $("#pulauTabs").innerHTML = tabs.map(([v, l, n]) =>
       `<button class="ptab" role="tab" data-v="${esc(v)}" aria-selected="${S.pulau === v}">${esc(l)} <span class="n">${nf.format(n)}</span></button>`).join("");
   }
@@ -77,15 +90,14 @@
     sel.innerHTML = `<option value="">${allLabel}</option>` + items.map((i) => `<option${i === value ? " selected" : ""}>${esc(i)}</option>`).join("");
   }
   function buildRegionSelects() {
-    const provs = REGIONS.filter(([p]) => !S.pulau || p === S.pulau).map((r) => r[1]).sort();
+    const provs = uniq(DATA.filter((d) => !S.pulau || d.pulau === S.pulau), "provinsi");
     fillSelect($("#fProv"), provs, S.provinsi, "Semua provinsi");
-    const reg = REGIONS.find((r) => r[1] === S.provinsi);
-    const kabs = reg ? reg[3].map((k) => k[0]).sort() : [];
-    fillSelect($("#fKab"), kabs, S.kabkota, reg ? "Semua kab/kota" : "Pilih provinsi dulu");
-    $("#fKab").disabled = !reg;
-    const kab = reg && reg[3].find((k) => k[0] === S.kabkota);
-    fillSelect($("#fKec"), kab ? kab[3].slice().sort() : [], S.kecamatan, kab ? "Semua kecamatan" : "Pilih kab/kota dulu");
-    $("#fKec").disabled = !kab;
+    const kabs = S.provinsi ? uniq(DATA.filter((d) => d.provinsi === S.provinsi), "kabkota") : [];
+    fillSelect($("#fKab"), kabs, S.kabkota, S.provinsi ? "Semua kab/kota" : "Pilih provinsi dulu");
+    $("#fKab").disabled = !S.provinsi;
+    const kecs = S.kabkota ? uniq(DATA.filter((d) => d.provinsi === S.provinsi && d.kabkota === S.kabkota), "kecamatan") : [];
+    fillSelect($("#fKec"), kecs, S.kecamatan, S.kabkota ? "Semua kecamatan" : "Pilih kab/kota dulu");
+    $("#fKec").disabled = !S.kabkota;
   }
 
   function buildChecks() {
@@ -135,7 +147,9 @@
     return `<svg viewBox="0 0 16 16" width="${size}" height="${size}" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="${c}"/>${path}</svg>`;
   }
   const statusLabel = (k) => STATUS.find((s) => s.k === k).lbl;
-  const sisaText = (d) => d.sisa < 0 ? `lewat ${nf.format(-d.sisa)} hari` : d.sisa > 365 ? `${(d.sisa / 365).toFixed(1).replace(".", ",")} thn lagi` : `${nf.format(d.sisa)} hari lagi`;
+  const locText = (d) => [d.kecamatan !== UNKNOWN ? "Kec. " + d.kecamatan : "", d.kabkota !== UNKNOWN ? d.kabkota : "", d.provinsi !== UNKNOWN ? d.provinsi : ""].filter(Boolean).join(", ") || "Lokasi belum diketahui";
+  const AKURASI = { titik: "Titik dari peta LSP BNSP", kecamatan: "Perkiraan: pusat kecamatan", kabkota: "Perkiraan: pusat kab/kota", provinsi: "Perkiraan: pusat provinsi", "tidak ada": "Belum ada titik lokasi" };
+  const sisaText = (d) => d.sisa == null ? "tanggal tidak tercantum" : d.sisa < 0 ? `lewat ${nf.format(-d.sisa)} hari` : d.sisa > 365 ? `${(d.sisa / 365).toFixed(1).replace(".", ",")} thn lagi` : `${nf.format(d.sisa)} hari lagi`;
   const statusPill = (d) => `<span class="status ${d.status}">${statusIcon(d.status)}${statusLabel(d.status)}</span>`;
 
   function buildChips() {
@@ -148,7 +162,6 @@
     if (S.jenis.size < 3) chips.push(["jenis", `Jenis: ${[...S.jenis].sort().join(", ") || "—"}`]);
     if (S.status.size < 3) chips.push(["status", `Status: ${[...S.status].map(statusLabel).join(", ") || "—"}`]);
     if (S.from || S.to) chips.push(["tgl", `Berakhir ${S.from ? fmtDate(S.from) : "…"} – ${S.to ? fmtDate(S.to) : "…"}`]);
-    if (S.sektor) chips.push(["sektor", `Sektor: ${S.sektor}`]);
     $("#activeChips").innerHTML = chips.map(([k, l]) => `<span class="chip">${esc(l)}<button data-k="${k}" aria-label="Hapus filter ${esc(l)}">✕</button></span>`).join("");
   }
   function clearChip(k) {
@@ -160,14 +173,13 @@
     else if (k === "jenis") S.jenis = new Set(["P1", "P2", "P3"]);
     else if (k === "status") S.status = new Set(["aktif", "segera", "habis"]);
     else if (k === "tgl") { S.from = S.to = S.preset = ""; }
-    else if (k === "sektor") S.sektor = "";
   }
 
   function buildKpis(rows) {
     const j = countBy(rows, "jenis"), s = countBy(rows, "status");
     const tot = rows.length || 1;
-    const prov = new Set(rows.map((d) => d.provinsi)).size;
-    const kab = new Set(rows.map((d) => d.kabkota)).size;
+    const prov = new Set(rows.filter((d) => d.provinsi !== UNKNOWN).map((d) => d.provinsi)).size;
+    const kab = new Set(rows.filter((d) => d.kabkota !== UNKNOWN).map((d) => d.provinsi + d.kabkota)).size;
     const tile = (cls, k, v, sub, color, pct) => `
       <div class="kpi ${cls}">
         <span class="k">${k}</span>
@@ -221,32 +233,34 @@
   }
   function popupHtml(d) {
     return `<div class="pop"><h4>${esc(d.nama)}</h4>
-      <div class="meta">${esc(d.noLisensi)} · ${esc(d.sektor)}</div>
+      <div class="meta">${esc(d.noLisensi)}${d.jmlSkema != null ? " · " + d.jmlSkema + " skema" : ""}</div>
       <div class="row"><span class="jbadge ${d.jenis}">${d.jenis}</span>${statusPill(d)}</div>
-      <div class="meta">Kec. ${esc(d.kecamatan)}, ${esc(d.kabkota)}<br>Berlaku s.d. ${fmtDate(d.tglBerakhir)} (${sisaText(d)})</div>
+      <div class="meta">${esc(locText(d))}<br>${d.tglBerakhir ? `Berlaku s.d. ${fmtDate(d.tglBerakhir)} (${sisaText(d)})` : "Masa berlaku tidak tercantum"}${d.akurasi !== "titik" ? `<br><i>Titik perkiraan (pusat ${d.akurasi === "kecamatan" ? "kecamatan" : d.akurasi === "kabkota" ? "kab/kota" : "provinsi"})</i>` : ""}</div>
       <button data-detail="${d.id}">Lihat detail</button></div>`;
   }
   function updateMap(rows) {
     cluster.clearLayers();
     markersById = {};
-    const ms = rows.map((d) => {
+    const withLL = rows.filter((d) => d.lat != null && d.lng != null);
+    const ms = withLL.map((d) => {
       const m = L.marker([d.lat, d.lng], { icon: pinIcon(d), title: d.nama });
       m.bindPopup(() => popupHtml(d));
       markersById[d.id] = m;
       return m;
     });
     cluster.addLayers(ms);
-    $("#mapSub").textContent = `${nf.format(rows.length)} titik LSP${S.pulau ? " · " + S.pulau : ""}${S.provinsi ? " · " + S.provinsi : ""}`;
+    const miss = rows.length - withLL.length;
+    $("#mapSub").textContent = `${nf.format(withLL.length)} titik LSP${S.pulau ? " · " + S.pulau : ""}${S.provinsi ? " · " + S.provinsi : ""}${miss ? ` · ${nf.format(miss)} tanpa lokasi` : ""}`;
     const regionKey = [S.pulau, S.provinsi, S.kabkota, S.kecamatan].join("|");
     if (regionKey !== lastRegionKey) {
       lastRegionKey = regionKey;
-      if (rows.length && regionKey !== "|||") map.flyToBounds(L.latLngBounds(rows.map((d) => [d.lat, d.lng])).pad(0.15), { maxZoom: 12, duration: 0.6 });
+      if (withLL.length && regionKey !== "|||") map.flyToBounds(L.latLngBounds(withLL.map((d) => [d.lat, d.lng])).pad(0.15), { maxZoom: 12, duration: 0.6 });
       else if (regionKey === "|||") map.flyTo([-2.5, 118], 5, { duration: 0.6 });
     }
   }
 
   // ---------------- charts ----------------
-  let chPulau, chExpiry, chSektor;
+  let chPulau, chExpiry, chKab;
   function chartDefaults() {
     Chart.defaults.font.family = css("--font");
     Chart.defaults.font.size = 12;
@@ -260,7 +274,7 @@
     const surface = css("--surface");
     // 1) per pulau, stacked by jenis
     const pc = {}; PULAU.forEach((p) => (pc[p] = { P1: 0, P2: 0, P3: 0 }));
-    rows.forEach((d) => pc[d.pulau][d.jenis]++);
+    rows.forEach((d) => { if (pc[d.pulau]) pc[d.pulau][d.jenis]++; });
     const pulauDs = JENIS.map((j) => ({
       label: j.k, data: PULAU.map((p) => pc[p][j.k]), backgroundColor: css(`--${j.k.toLowerCase()}`),
       borderColor: surface, borderWidth: { right: 2 }, borderSkipped: false, borderRadius: 3, barThickness: 16,
@@ -278,7 +292,7 @@
     });
 
     // 2) expiry per year, stacked by status
-    const years = []; for (let y = 2025; y <= 2031; y++) years.push(y);
+    const years = []; for (let y = TODAY.getFullYear() - 2; y <= TODAY.getFullYear() + 5; y++) years.push(y);
     const ec = {}; years.forEach((y) => (ec[y] = { aktif: 0, segera: 0, habis: 0 }));
     rows.forEach((d) => { const y = +d.tglBerakhir.slice(0, 4); if (ec[y]) ec[y][d.status]++; });
     const stCol = { aktif: css("--ok"), segera: css("--warn"), habis: css("--crit") };
@@ -294,16 +308,18 @@
       },
     });
 
-    // 3) top sektor
-    const sc = Object.entries(countBy(rows, "sektor")).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    chSektor = upsert(chSektor, "#chSektor", {
+    // 3) kab/kota terbanyak
+    const kc = {};
+    rows.forEach((d) => { if (d.kabkota !== UNKNOWN) { const k = d.kabkota + "|" + d.provinsi; kc[k] = (kc[k] || 0) + 1; } });
+    const sc = Object.entries(kc).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    chKab = upsert(chKab, "#chKab", {
       type: "bar",
-      data: { labels: sc.map((x) => x[0]), datasets: [{ label: "LSP", data: sc.map((x) => x[1]), backgroundColor: css("--p1"), borderRadius: 3, barThickness: 14 }] },
+      data: { labels: sc.map((x) => x[0].split("|")[0].replace(/^Kabupaten /, "Kab. ")), datasets: [{ label: "LSP", data: sc.map((x) => x[1]), backgroundColor: css("--p1"), borderRadius: 3, barThickness: 14 }] },
       options: {
         indexAxis: "y", maintainAspectRatio: false, animation: { duration: 250 },
         scales: { x: { grid: { color: css("--grid") }, border: { display: false }, ticks: { precision: 0 } }, y: { grid: { display: false }, border: { color: css("--line-strong") } } },
-        plugins: { legend: { display: false }, tooltip: tooltip() },
-        onClick: (e, els) => { if (els.length) { const s = sc[els[0].index][0]; S.sektor = S.sektor === s ? "" : s; render(); } },
+        plugins: { legend: { display: false }, tooltip: { ...tooltip(), callbacks: { title: (it) => sc[it[0].dataIndex][0].replace("|", ", ") } } },
+        onClick: (e, els) => { if (els.length) { const [kab, prov] = sc[els[0].index][0].split("|"); if (S.kabkota === kab) { S.kabkota = S.kecamatan = ""; } else { S.provinsi = prov; S.pulau = provToPulau[prov]; S.kabkota = kab; S.kecamatan = ""; } page = 1; render(); } },
         onHover: (e, els) => (e.native.target.style.cursor = els.length ? "pointer" : "default"),
       },
     });
@@ -317,6 +333,8 @@
   function sortRows(rows) {
     return rows.slice().sort((a, b) => {
       const x = a[sortKey], y = b[sortKey];
+      if (x == null || x === "") return 1;
+      if (y == null || y === "") return -1;
       return (typeof x === "number" ? x - y : String(x).localeCompare(String(y), "id")) * sortDir;
     });
   }
@@ -331,10 +349,10 @@
         <td class="mono">${esc(d.noLisensi)}</td>
         <td class="nm">${esc(d.nama)}</td>
         <td><span class="jbadge ${d.jenis}">${d.jenis}</span></td>
-        <td>${esc(d.sektor)}</td>
-        <td class="loc">${esc(d.kabkota)}<small>Kec. ${esc(d.kecamatan)}</small></td>
+        <td class="mono">${d.jmlSkema != null ? d.jmlSkema : "–"}</td>
+        <td class="loc">${esc(d.kabkota)}${d.kecamatan !== UNKNOWN ? `<small>Kec. ${esc(d.kecamatan)}</small>` : ""}</td>
         <td>${esc(d.provinsi)}</td>
-        <td class="mono">${fmtDate(d.tglBerakhir)}</td>
+        <td class="mono">${d.tglBerakhir ? fmtDate(d.tglBerakhir) : "–"}</td>
         <td>${statusPill(d)}<div class="mono" style="font-size:11.5px;margin-top:2px">${sisaText(d)}</div></td>
       </tr>`).join("") : `<tr><td colspan="8" class="empty">Tidak ada LSP yang cocok. Coba longgarkan filter atau klik “Atur ulang”.</td></tr>`;
     document.querySelectorAll("#table th").forEach((th) => th.setAttribute("aria-sort", th.dataset.k === sortKey ? (sortDir > 0 ? "ascending" : "descending") : "none"));
@@ -353,32 +371,30 @@
   function openDetail(id, fly = true) {
     const d = DATA.find((x) => x.id === +id);
     if (!d) return;
-    const total = (new Date(d.tglBerakhir) - new Date(d.tglLisensi)) / DAY;
-    const used = Math.min(100, Math.max(0, ((TODAY - new Date(d.tglLisensi)) / DAY / total) * 100));
-    const col = d.status === "aktif" ? "var(--ok)" : d.status === "segera" ? "var(--warn)" : "var(--crit)";
+    const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+    const web = d.web ? (/^https?:/i.test(d.web) ? d.web : "https://" + d.web) : "";
     $("#dJenis").className = `jbadge ${d.jenis}`;
     $("#dJenis").textContent = `${d.jenis} · ${JENIS.find((j) => j.k === d.jenis).desc}`;
     $("#drawerBody").innerHTML = `
-      <div><h2>${esc(d.nama)}</h2><div class="lic">${esc(d.noLisensi)}</div></div>
+      <div><h2>${esc(d.nama)}</h2><div class="lic">${esc(d.noLisensi)}${d.sk ? " · SK " + esc(d.sk) : ""}</div></div>
       <div class="validity">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">${statusPill(d)}<b style="font-variant-numeric:tabular-nums">${sisaText(d)}</b></div>
-        <div class="track" role="img" aria-label="Masa berlaku terpakai ${used.toFixed(0)} persen"><i style="width:${used}%;background:${col}"></i></div>
-        <div class="dates"><span>Terbit ${fmtDate(d.tglLisensi)}</span><span>Berakhir ${fmtDate(d.tglBerakhir)}</span></div>
+        <div class="dates"><span>Berlaku s.d. ${d.tglBerakhir ? fmtDate(d.tglBerakhir) : "–"}</span><span>Status di BNSP: ${esc(d.statusResmi || "–")}</span></div>
       </div>
-      <div class="stats3"><div><b>${d.jmlSkema}</b><span>Skema</span></div><div><b>${d.jmlAsesor}</b><span>Asesor</span></div><div><b>${d.jmlTUK}</b><span>TUK</span></div></div>
       <dl class="dl">
-        <dt>Sektor</dt><dd>${esc(d.sektor)}</dd>
-        <dt>Alamat</dt><dd>${esc(d.alamat)}</dd>
-        <dt>Kecamatan</dt><dd>${esc(d.kecamatan)}</dd>
-        <dt>Kab/Kota</dt><dd>${esc(d.kabkota)}</dd>
-        <dt>Provinsi</dt><dd>${esc(d.provinsi)}</dd>
-        <dt>Pulau</dt><dd>${esc(d.pulau)}</dd>
-        <dt>Telepon</dt><dd>${esc(d.telepon)}</dd>
-        <dt>Email</dt><dd>${esc(d.email)}</dd>
-        <dt>Koordinat</dt><dd style="font-variant-numeric:tabular-nums">${d.lat}, ${d.lng}</dd>
+        ${row("Jumlah skema", d.jmlSkema != null ? String(d.jmlSkema) : "")}
+        ${row("Alamat", esc(d.alamat || "Belum terdaftar"))}
+        ${row("Kecamatan", esc(d.kecamatan))}
+        ${row("Kab/Kota", esc(d.kabkota))}
+        ${row("Provinsi", esc(d.provinsi))}
+        ${row("Telepon", esc(d.telepon))}
+        ${row("Email", esc(d.email))}
+        ${row("Website", web ? `<a href="${esc(web)}" target="_blank" rel="noopener">${esc(d.web)}</a>` : "")}
+        ${row("Lokasi peta", esc(AKURASI[d.akurasi] || ""))}
       </dl>
-      <button class="btn btn-ghost" id="btnShowOnMap" style="justify-content:center">Tampilkan di peta</button>`;
-    $("#btnShowOnMap").onclick = () => { closeDetail(); focusMarker(d.id); };
+      <a class="btn btn-ghost" style="justify-content:center;text-decoration:none" href="https://bnsp.go.id/lsp/${encodeURIComponent(d.slug)}" target="_blank" rel="noopener">Lihat di bnsp.go.id ↗</a>
+      ${d.lat != null ? `<button class="btn btn-ghost" id="btnShowOnMap" style="justify-content:center">Tampilkan di peta</button>` : ""}`;
+    if ($("#btnShowOnMap")) $("#btnShowOnMap").onclick = () => { closeDetail(); focusMarker(d.id); };
     $("#drawer").classList.add("open");
     $("#drawer").setAttribute("aria-hidden", "false");
     if (fly && window.innerWidth > 900) focusMarker(d.id, false);
@@ -395,7 +411,6 @@
   function render() {
     const rows = filtered();
     buildPulauTabs(); buildRegionSelects(); buildChecks(); buildPresets(); buildChips();
-    $("#fSektor").value = S.sektor;
     buildKpis(rows); buildProvList(rows); updateMap(rows); buildCharts(rows); buildTable(rows);
   }
   function setPulau(p) {
@@ -415,17 +430,16 @@
     parts.push(`Jenis: ${[...S.jenis].sort().join(", ") || "-"}`);
     parts.push(`Status: ${[...S.status].map(statusLabel).join(", ") || "-"}`);
     if (S.from || S.to) parts.push(`Berakhir: ${S.from ? fmtDate(S.from) : "..."} s.d. ${S.to ? fmtDate(S.to) : "..."}`);
-    if (S.sektor) parts.push(`Sektor: ${S.sektor}`);
     if (S.q) parts.push(`Kata kunci: "${S.q}"`);
     return parts;
   }
   const fileStamp = () => isoDate(new Date()).replace(/-/g, "");
   const exportRow = (d, i) => ({
-    "No": i + 1, "No. Lisensi": d.noLisensi, "Nama LSP": d.nama, "Jenis": d.jenis, "Sektor": d.sektor,
+    "No": i + 1, "No. Lisensi": d.noLisensi, "No. SK": d.sk, "Nama LSP": d.nama, "Jenis": d.jenis,
     "Alamat": d.alamat, "Kecamatan": d.kecamatan, "Kabupaten/Kota": d.kabkota, "Provinsi": d.provinsi, "Pulau": d.pulau,
-    "Tgl Lisensi": d.tglLisensi, "Berlaku s.d.": d.tglBerakhir, "Sisa Hari": d.sisa, "Status": statusLabel(d.status),
-    "Jml Skema": d.jmlSkema, "Jml Asesor": d.jmlAsesor, "Jml TUK": d.jmlTUK, "Telepon": d.telepon, "Email": d.email,
-    "Latitude": d.lat, "Longitude": d.lng,
+    "Berlaku s.d.": d.tglBerakhir, "Sisa Hari": d.sisa, "Status": statusLabel(d.status), "Status di BNSP": d.statusResmi,
+    "Jml Skema": d.jmlSkema, "Telepon": d.telepon, "Email": d.email, "Website": d.web,
+    "Latitude": d.lat, "Longitude": d.lng, "Ketepatan Lokasi": AKURASI[d.akurasi] || "", "Halaman BNSP": `https://bnsp.go.id/lsp/${d.slug}`,
   });
 
   function exportXlsx() {
@@ -435,7 +449,7 @@
     // Sheet ringkasan
     const j = countBy(rows, "jenis"), s = countBy(rows, "status");
     const aoa = [
-      ["Rekap LSP Terlisensi BNSP"], [`Diekspor: ${fmtDate(isoDate(new Date()))}`], ["Catatan: purwarupa — data contoh, bukan data resmi BNSP"], [],
+      ["Rekap LSP Terlisensi BNSP"], [`Diekspor: ${fmtDate(isoDate(new Date()))}`], [`Sumber: bnsp.go.id/lsp, diambil ${META.diambil ? fmtDate(META.diambil) : "-"}. Kecamatan & titik lokasi sebagian hasil perkiraan.`], [],
       ["Filter aktif"], ...filterSummary().map((p) => [p]), [],
       ["Ringkasan", "Jumlah"], ["Total LSP", rows.length], ["LSP P1", j.P1 || 0], ["LSP P2", j.P2 || 0], ["LSP P3", j.P3 || 0],
       ["Aktif", s.aktif || 0], ["Segera berakhir (≤ 6 bln)", s.segera || 0], ["Kedaluwarsa", s.habis || 0], [],
@@ -447,7 +461,7 @@
     const ws1 = XLSX.utils.aoa_to_sheet(aoa);
     ws1["!cols"] = [{ wch: 42 }, { wch: 22 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
     const ws2 = XLSX.utils.json_to_sheet(rows.map(exportRow));
-    ws2["!cols"] = [5, 20, 48, 7, 24, 40, 22, 28, 26, 20, 12, 12, 10, 18, 10, 10, 8, 16, 34, 10, 10].map((w) => ({ wch: w }));
+    ws2["!cols"] = [5, 20, 26, 48, 7, 50, 22, 28, 26, 20, 12, 10, 16, 18, 10, 18, 30, 30, 10, 10, 26, 50].map((w) => ({ wch: w }));
     ws2["!autofilter"] = { ref: ws2["!ref"] };
     XLSX.utils.book_append_sheet(wb, ws2, "Data LSP");
     XLSX.utils.book_append_sheet(wb, ws1, "Ringkasan");
@@ -467,7 +481,7 @@
     doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(15);
     doc.text("Rekap LSP Terlisensi BNSP", 12, 10);
     doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-    doc.text(`Diekspor ${fmtDate(isoDate(new Date()))} · Purwarupa — data contoh, bukan data resmi BNSP`, 12, 16);
+    doc.text(`Diekspor ${fmtDate(isoDate(new Date()))} · Sumber: bnsp.go.id/lsp (diambil ${META.diambil ? fmtDate(META.diambil) : "-"})`, 12, 16);
     doc.setTextColor(30);
     doc.setFontSize(8.5);
     doc.text(doc.splitTextToSize("Filter: " + filterSummary().join("  |  "), W - 24), 12, 29);
@@ -512,8 +526,8 @@
     doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text(`Daftar LSP (${nf.format(rows.length)})`, 12, 14); doc.setFont("helvetica", "normal");
     doc.autoTable({
       startY: 18, margin: { left: 12, right: 12 },
-      head: [["No", "No. Lisensi", "Nama LSP", "Jenis", "Sektor", "Kecamatan", "Kab/Kota", "Provinsi", "Berlaku s.d.", "Status"]],
-      body: rows.map((d, i) => [i + 1, d.noLisensi, d.nama, d.jenis, d.sektor, d.kecamatan, d.kabkota, d.provinsi, fmtDate(d.tglBerakhir), statusLabel(d.status)]),
+      head: [["No", "No. Lisensi", "Nama LSP", "Jenis", "Skema", "Kecamatan", "Kab/Kota", "Provinsi", "Berlaku s.d.", "Status"]],
+      body: rows.map((d, i) => [i + 1, d.noLisensi, d.nama, d.jenis, d.jmlSkema ?? "-", d.kecamatan, d.kabkota, d.provinsi, d.tglBerakhir ? fmtDate(d.tglBerakhir) : "-", statusLabel(d.status)]),
       styles: { fontSize: 7.5, cellPadding: 1.5, overflow: "linebreak" }, headStyles: { fillColor: red }, alternateRowStyles: { fillColor: [247, 248, 250] },
       columnStyles: { 0: { cellWidth: 9, halign: "right" }, 2: { cellWidth: 62 }, 3: { cellWidth: 11, halign: "center" } },
       didParseCell: (h) => {
@@ -546,14 +560,12 @@
 
   // ---------------- events ----------------
   function bind() {
-    fillSelect($("#fSektor"), [...new Set(DATA.map((d) => d.sektor))].sort(), "", "Semua sektor");
     $("#pulauTabs").addEventListener("click", (e) => { const b = e.target.closest(".ptab"); if (b) setPulau(b.dataset.v); });
     let qT;
     $("#fSearch").addEventListener("input", (e) => { clearTimeout(qT); qT = setTimeout(() => { S.q = e.target.value.trim().toLowerCase(); page = 1; render(); }, 200); });
     $("#fProv").addEventListener("change", (e) => { S.provinsi = e.target.value; S.kabkota = S.kecamatan = ""; if (S.provinsi) S.pulau = provToPulau[S.provinsi]; page = 1; render(); });
     $("#fKab").addEventListener("change", (e) => { S.kabkota = e.target.value; S.kecamatan = ""; page = 1; render(); });
     $("#fKec").addEventListener("change", (e) => { S.kecamatan = e.target.value; page = 1; render(); });
-    $("#fSektor").addEventListener("change", (e) => { S.sektor = e.target.value; page = 1; render(); });
     $("#fJenis").addEventListener("change", (e) => { const v = e.target.value; S.jenis.has(v) ? S.jenis.delete(v) : S.jenis.add(v); page = 1; render(); });
     $("#fStatus").addEventListener("change", (e) => { const v = e.target.value; S.status.has(v) ? S.status.delete(v) : S.status.add(v); page = 1; render(); });
     $("#fPresets").addEventListener("click", (e) => { const b = e.target.closest(".preset"); if (b) { applyPreset(b.dataset.k); page = 1; render(); } });
@@ -589,6 +601,10 @@
   function closeFilters() { $("#sidebar").classList.remove("open"); $("#scrim").hidden = true; }
 
   if (window.innerWidth < 600) $("#pageSize").value = "10";
+  if (META.diambil) {
+    $("#footSrc").insertAdjacentHTML("beforeend", ` Diambil ${fmtDate(META.diambil)} (${nf.format(META.jumlah)} LSP).`);
+    $("#srcBadge").textContent = `bnsp.go.id · ${fmtDate(META.diambil)}`;
+  }
   initMap();
   bind();
   render();

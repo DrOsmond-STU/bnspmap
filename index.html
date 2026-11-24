@@ -27,7 +27,7 @@
         <p class="sub">Sebaran Lembaga Sertifikasi Profesi P1 · P2 · P3 di Indonesia</p>
       </div>
     </div>
-    <span class="demo-badge" title="Purwarupa memakai data contoh. Ganti dengan data resmi BNSP sebelum dipakai.">Data contoh</span>
+    <span class="demo-badge" id="srcBadge" title="Data diambil dari bnsp.go.id/lsp">Sumber: bnsp.go.id</span>
     <div class="actions">
       <button class="btn btn-ghost" id="btnXlsx">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 3v6h6M8.5 12.5l4 5M12.5 12.5l-4 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -58,7 +58,7 @@
       <label class="flabel" for="fSearch">Cari LSP</label>
       <div class="search">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input id="fSearch" type="search" placeholder="Nama, no. lisensi, sektor…" autocomplete="off">
+        <input id="fSearch" type="search" placeholder="Nama, no. lisensi, alamat…" autocomplete="off">
       </div>
     </div>
 
@@ -88,10 +88,6 @@
       </div>
     </div>
 
-    <div class="fgroup">
-      <label class="flabel" for="fSektor">Sektor / bidang</label>
-      <select id="fSektor"></select>
-    </div>
   </aside>
   <div class="scrim only-mobile" id="scrim" hidden></div>
 
@@ -133,8 +129,8 @@
         <div class="chartbox"><canvas id="chExpiry" aria-label="Grafik lisensi berakhir per tahun"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-head"><div><h3>Sektor terbanyak</h3><p class="card-sub">8 sektor teratas</p></div></div>
-        <div class="chartbox"><canvas id="chSektor" aria-label="Grafik sektor terbanyak"></canvas></div>
+        <div class="card-head"><div><h3>Kab/kota terbanyak</h3><p class="card-sub">8 teratas · klik untuk memfilter</p></div></div>
+        <div class="chartbox"><canvas id="chKab" aria-label="Grafik kabupaten/kota dengan LSP terbanyak"></canvas></div>
       </div>
     </section>
 
@@ -152,7 +148,7 @@
             <th data-k="noLisensi">No. Lisensi</th>
             <th data-k="nama">Nama LSP</th>
             <th data-k="jenis">Jenis</th>
-            <th data-k="sektor">Sektor</th>
+            <th data-k="jmlSkema">Skema</th>
             <th data-k="kabkota">Kab/Kota</th>
             <th data-k="provinsi">Provinsi</th>
             <th data-k="tglBerakhir">Berlaku s.d.</th>
@@ -165,7 +161,9 @@
     </section>
 
     <footer class="foot">
-      Purwarupa UI/UX · Data contoh sintetis yang meniru struktur daftar LSP di bnsp.go.id. Angka bukan data resmi BNSP.
+      <span id="footSrc">Sumber data: <a href="https://bnsp.go.id/lsp" target="_blank" rel="noopener">bnsp.go.id/lsp</a>.</span>
+      Wilayah dan titik lokasi ditentukan dari koordinat peta LSP BNSP; bila tidak tersedia, diperkirakan dari alamat (pusat kecamatan/kab-kota).
+      Untuk keperluan resmi, rujuk halaman detail LSP di bnsp.go.id.
     </footer>
   </main>
 </div>
@@ -187,7 +185,7 @@
 <script src="vendor/xlsx.full.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
-<script src="js/data.js"></script>
+<script src="js/lsp-data.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
