@@ -3,7 +3,7 @@
   "use strict";
 
   const DATA = window.LSP_DATA;
-  const PULAU = window.LSP_PULAU;
+  const PULAU = ["Sumatera", "Jawa", "Bali & Nusa Tenggara", "Kalimantan", "Sulawesi", "Maluku", "Papua"];
   const META = window.LSP_META || {};
   const UNKNOWN = "Belum diketahui";
   const JENIS = [
@@ -198,7 +198,7 @@
   function buildProvList(rows) {
     const byProv = {};
     rows.forEach((d) => { (byProv[d.provinsi] ||= { n: 0, P1: 0, P2: 0, P3: 0 }); byProv[d.provinsi].n++; byProv[d.provinsi][d.jenis]++; });
-    const list = Object.entries(byProv).sort((a, b) => b[1].n - a[1].n);
+    const list = Object.entries(byProv).sort((a, b) => (a[0] === UNKNOWN) - (b[0] === UNKNOWN) || b[1].n - a[1].n);
     if (!list.length) { $("#provList").innerHTML = `<li class="empty">Tidak ada LSP yang cocok dengan filter.</li>`; return; }
     $("#provList").innerHTML = list.map(([p, c]) => `
       <li><button class="prov" data-p="${esc(p)}" aria-pressed="${S.provinsi === p}">
@@ -374,7 +374,7 @@
     const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
     const web = d.web ? (/^https?:/i.test(d.web) ? d.web : "https://" + d.web) : "";
     $("#dJenis").className = `jbadge ${d.jenis}`;
-    $("#dJenis").textContent = `${d.jenis} · ${JENIS.find((j) => j.k === d.jenis).desc}`;
+    $("#dJenis").textContent = `${d.jenis} · ${JENIS.find((j) => j.k === d.jenis).desc}${d.jenisPerkiraan ? " (perkiraan)" : ""}`;
     $("#drawerBody").innerHTML = `
       <div><h2>${esc(d.nama)}</h2><div class="lic">${esc(d.noLisensi)}${d.sk ? " · SK " + esc(d.sk) : ""}</div></div>
       <div class="validity">
@@ -391,6 +391,7 @@
         ${row("Email", esc(d.email))}
         ${row("Website", web ? `<a href="${esc(web)}" target="_blank" rel="noopener">${esc(d.web)}</a>` : "")}
         ${row("Lokasi peta", esc(AKURASI[d.akurasi] || ""))}
+        ${d.jenisPerkiraan ? row("Catatan", "Halaman detail LSP ini tidak dapat dibuka di bnsp.go.id, jadi jenis LSP diperkirakan dari namanya.") : ""}
       </dl>
       <a class="btn btn-ghost" style="justify-content:center;text-decoration:none" href="https://bnsp.go.id/lsp/${encodeURIComponent(d.slug)}" target="_blank" rel="noopener">Lihat di bnsp.go.id ↗</a>
       ${d.lat != null ? `<button class="btn btn-ghost" id="btnShowOnMap" style="justify-content:center">Tampilkan di peta</button>` : ""}`;

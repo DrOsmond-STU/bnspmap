@@ -1,6 +1,7 @@
 # Tolak akses ke metadata Git dan file non-publik
 RedirectMatch 404 /\.git
-<FilesMatch "^(README\.md|\.gitignore|\.htaccess)$">
+RedirectMatch 404 ^/(tools|work)/
+<FilesMatch "^(README\.md|\.gitignore|\.htaccess|php\.ini)$">
   Require all denied
 </FilesMatch>
 Options -Indexes
