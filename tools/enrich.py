@@ -69,7 +69,9 @@ def has_place(t, w):
     return False
 
 JKT_VILLAGES = []
+VIL_BY_REG = collections.defaultdict(lambda: collections.defaultdict(list))
 for r in rd("villages.csv"):
+    VIL_BY_REG[r["district_code"][:5]][norm(r["name"]).strip()].append(r["district_code"])
     if r["code"].startswith("31."):
         n = norm(r["name"]).strip()
         if len(n) >= 5: JKT_VILLAGES.append((n, r["district_code"]))
@@ -133,11 +135,21 @@ def resolve_reverse(rv):
             reg = sorted(m, key=lambda c: (not REG_IS_KOTA[c]) if key == "city" else REG_IS_KOTA[c])[0]; break
     if not reg: return "P" + pc, None
     dist = None
-    for key in ("city_district", "municipality", "town", "suburb", "village", "quarter", "hamlet"):
+    for key in ("city_district", "district", "municipality", "town", "suburb", "village", "quarter", "hamlet"):
         v = norm(a.get(key, "")).strip()
         v = re.sub(r"^kecamatan ", "", v)
         m = [dc for dc in DIST_BY_REG[reg] if DIST_CORE[dc] == v]
         if m: dist = m[0]; break
+    if not dist:   # Nominatim sering hanya memberi nama desa/kelurahan -> cari kecamatannya
+        for key in ("village", "suburb", "neighbourhood", "quarter", "hamlet", "city_block"):
+            v = re.sub(r"^(desa|kelurahan) ", "", norm(a.get(key, "")).strip())
+            cands = sorted(set(VIL_BY_REG[reg].get(v, []))) if v else []
+            if len(cands) == 1:
+                dist = cands[0]; break
+            if len(cands) > 1:   # nama desa ganda dalam satu kab/kota: pilih yang cocok dgn nama kota/kecamatan Nominatim
+                hints = {re.sub(r"^(kabupaten|kota|kecamatan) ", "", norm(a.get(k, "")).strip()) for k in ("city", "town", "municipality", "city_district", "district")}
+                m = [dc for dc in cands if DIST_CORE[dc] in hints]
+                if len(m) == 1: dist = m[0]; break
     return reg, dist
 
 # ---------------- data BNSP ----------------
@@ -217,6 +229,9 @@ for slug, c in cards.items():
     if ll:
         reg, dist = resolve_reverse(geo.reverse(*ll))
         akurasi = "titik"
+        if reg and not reg.startswith("P") and not dist:
+            r2, d2 = resolve_text(alamat, hint)
+            if r2 == reg and d2: dist = d2
     if not reg or reg.startswith("P"):
         r2, d2 = resolve_text(alamat, hint)
         if r2 and not r2.startswith("P"):
