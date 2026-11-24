@@ -1,0 +1,20 @@
+# Tolak akses ke metadata Git dan file non-publik
+RedirectMatch 404 /\.git
+<FilesMatch "^(README\.md|\.gitignore|\.htaccess)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes
+DirectoryIndex index.html
+
+# Paksa HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Cache aset statis
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 7 days"
+  ExpiresByType application/javascript "access plus 7 days"
+  ExpiresByType image/png "access plus 30 days"
+</IfModule>
