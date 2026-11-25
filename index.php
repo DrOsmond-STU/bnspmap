@@ -1,16 +1,25 @@
-<!doctype html>
+<?php
+declare(strict_types=1);
+require __DIR__ . '/auth.php';
+$user = require_login();
+header('Cache-Control: no-store');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: same-origin');
+$csrf = csrf_token();
+?><!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Peta LSP BNSP</title>
+<meta name="robots" content="noindex">
 <meta name="description" content="Purwarupa dashboard pemetaan Lembaga Sertifikasi Profesi (LSP) P1, P2, P3 berlisensi BNSP">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="vendor/MarkerCluster.css">
-<link rel="stylesheet" href="css/style.css?v=20261124b">
+<link rel="stylesheet" href="css/style.css?v=20261125">
 </head>
 <body>
 <header class="topbar">
@@ -37,6 +46,17 @@
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Export PDF</span>
       </button>
+      <form class="usermenu" method="post" action="logout.php">
+        <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+        <span class="who" title="Masuk sebagai <?= e($user['username']) ?>">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span class="who-name"><?= e($user['name']) ?></span>
+        </span>
+        <button class="btn btn-ghost btn-logout" type="submit" aria-label="Keluar">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 16l-4-4 4-4M6 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Keluar</span>
+        </button>
+      </form>
     </div>
   </div>
 </header>
@@ -185,7 +205,7 @@
 <script src="vendor/xlsx.full.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
-<script src="js/lsp-data.js?v=20261124b"></script>
-<script src="js/app.js?v=20261124b"></script>
+<script src="data.php?v=<?= filemtime(__DIR__ . '/js/lsp-data.js') ?>"></script>
+<script src="js/app.js?v=20261125"></script>
 </body>
 </html>

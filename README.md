@@ -9,14 +9,31 @@ lengkap dengan jenis (P1/P2/P3), nomor lisensi, SK, masa berlaku, alamat, dan ko
 
 ## Cara menjalankan
 
-Tidak perlu build. Semua pustaka sudah disertakan di folder `vendor/`.
+Tidak perlu build. Semua pustaka sudah disertakan di folder `vendor/`. Butuh PHP 7.4+ (untuk login).
 
 ```bash
-python3 -m http.server 8000
+BNSPMAP_CONFIG_DIR=/path/ke/config php -S 127.0.0.1:8000
 ```
 
-Lalu buka <http://localhost:8000>. File `index.html` juga bisa dibuka langsung di browser.
+Lalu buka <http://127.0.0.1:8000>.
 Peta dasar (OpenStreetMap) dan font memerlukan koneksi internet.
+
+## Login
+
+Dashboard hanya bisa dibuka setelah masuk lewat `login.php` (sesi PHP). File data `js/lsp-data.js` diblokir dari akses langsung
+dan hanya disajikan lewat `data.php` kepada pengguna yang sudah masuk.
+
+- Akun disimpan di `../bnspmap-config/users.php` (di **luar** folder web), formatnya:
+  ```php
+  <?php
+  return [
+    'admin' => ['name' => 'Administrator', 'hash' => '$2y$10$...'],
+  ];
+  ```
+  Nama pengguna ditulis huruf kecil. Hash dibuat dengan `php tools/hash-password.php`.
+- Setelah 5 kali gagal dari alamat IP yang sama, login dikunci 15 menit.
+- Sesi berakhir otomatis setelah 8 jam tidak aktif.
+- Menjalankan lokal: `BNSPMAP_CONFIG_DIR=/path/ke/config php -S 127.0.0.1:8000` lalu buka <http://127.0.0.1:8000>.
 
 ## Fitur sesuai kebutuhan
 
@@ -35,7 +52,9 @@ tampilan mobile (panel filter jadi laci), dan mode gelap mengikuti pengaturan si
 ## Struktur
 
 ```
-index.html        halaman dashboard
+index.php         halaman dashboard (wajib login)
+login.php         halaman masuk; logout.php keluar; auth.php logika sesi
+data.php          menyajikan js/lsp-data.js hanya untuk pengguna yang sudah masuk
 css/style.css     gaya (token warna terang/gelap, responsif)
 js/lsp-data.js    data LSP hasil unduhan (dibuat otomatis)
 js/app.js         filter, peta, grafik, tabel, export
