@@ -43,13 +43,18 @@ function start_session(): void
         return;
     }
     session_name('BNSPMAPSESS');
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'secure' => is_https(),
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
+    ini_set('session.use_strict_mode', '1');
+    if (PHP_VERSION_ID >= 70300) {
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path' => '/',
+            'secure' => is_https(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    } else {   // PHP 7.2: SameSite disisipkan lewat path
+        session_set_cookie_params(0, '/; samesite=Lax', '', is_https(), true);
+    }
     session_start();
 
     if (isset($_SESSION['user'], $_SESSION['last_seen']) && time() - $_SESSION['last_seen'] > SESSION_IDLE_SECONDS) {
@@ -209,10 +214,7 @@ function logout(): void
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
-        setcookie(session_name(), '', [
-            'expires' => time() - 42000, 'path' => $p['path'], 'secure' => $p['secure'],
-            'httponly' => $p['httponly'], 'samesite' => 'Lax',
-        ]);
+        setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], (bool) $p['secure'], (bool) $p['httponly']);
     }
     session_destroy();
 }
