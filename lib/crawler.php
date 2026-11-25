@@ -58,7 +58,7 @@ final class Crawler
      * @param array<string,string> $urls  kunci => url
      * @return array<string,?string>      kunci => isi (null bila gagal; 404 dicatat di $notFound)
      */
-    private function fetchMany(array $urls, string $phase, array &$notFound = []): array
+    private function fetchMany(array $urls, string $phase, array &$notFound = [], ?callable $valid = null): array
     {
         $out = [];
         $pending = [];
@@ -94,7 +94,12 @@ final class Crawler
                 curl_multi_remove_handle($mh, $ch);
                 curl_close($ch);
                 [$k, $u, $try] = $item;
-                if ($info['result'] === CURLE_OK && $code === 200 && $body !== '' && $body !== null) {
+                $ok = $info['result'] === CURLE_OK && $code === 200 && $body !== '' && $body !== null;
+                if ($ok && $valid && !$valid($body)) {   // 200 tetapi bukan halaman yang diharapkan (mis. halaman galat/pembatasan)
+                    $ok = false;
+                    $code = 'konten tidak valid';
+                }
+                if ($ok) {
                     $out[$k] = $body;
                 } elseif ($code === 404) {
                     $out[$k] = null;
@@ -326,7 +331,9 @@ final class Crawler
         if ($pages < 1) throw new \RuntimeException('Jumlah halaman daftar LSP tidak terbaca (struktur situs BNSP mungkin berubah).');
         $urls = [];
         for ($p = 2; $p <= $pages; $p++) $urls[(string) $p] = self::BASE . "/lsp?hal=$p";
-        $htmls = ['1' => $first] + $this->fetchMany($urls, "Langkah 2/5 · Membaca daftar LSP ($pages halaman)");
+        $nf = [];
+        $htmls = ['1' => $first] + $this->fetchMany($urls, "Langkah 2/5 · Membaca daftar LSP ($pages halaman)", $nf,
+            function (string $h): bool { return strpos($h, 'Halaman') !== false; });
         $cards = [];
         $failedPages = 0;
         foreach ($htmls as $p => $h) {
@@ -353,7 +360,8 @@ final class Crawler
         $durls = [];
         foreach ($targets as $slug) $durls[$slug] = self::BASE . '/lsp/' . rawurlencode(html_entity_decode($slug, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $notFound = [];
-        $details = $this->fetchMany($durls, 'Langkah 3/5 · Mengambil detail LSP', $notFound);
+        $details = $this->fetchMany($durls, 'Langkah 3/5 · Mengambil detail LSP', $notFound,
+            function (string $h): bool { return strpos($h, 'Profile LSP') !== false; });
         $notFoundSet = array_flip(array_map('strval', $notFound));
         if ($notFound) $this->log('Halaman detail 404 di bnsp.go.id: ' . count($notFound));
 
@@ -380,6 +388,9 @@ final class Crawler
             $n++;
             if ($n % 25 === 0) { $this->progress('Langkah 4/5 · Menentukan wilayah', $n, count($targets)); $this->checkCancel(); }
             $html = $details[$slug] ?? null;
+            if ($html !== null && !isset(self::parseDetail($html)['nama'])) {
+                $html = null;
+            }
             if ($html === null && $old && !isset($notFoundSet[$slug])) {   // gagal sementara: pertahankan data lama
                 $this->stats['detailGagal']++;
                 $rows[$slug] = $old;
@@ -438,7 +449,13 @@ final class Crawler
     {
         foreach (['nama', 'jenis', 'noLisensi', 'sk', 'tglBerakhir', 'statusResmi', 'alamat', 'telepon', 'email', 'web', 'jmlSkema',
                   'provinsi', 'kabkota', 'kecamatan', 'lat', 'lng'] as $k) {
-            if (($a[$k] ?? null) != ($b[$k] ?? null)) return true;
+            $x = $a[$k] ?? null;
+            $y = $b[$k] ?? null;
+            if (($k === 'lat' || $k === 'lng') && $x !== null && $y !== null) {
+                if (abs((float) $x - (float) $y) > 5e-6) return true;   // abaikan selisih pembulatan
+                continue;
+            }
+            if ($x != $y) return true;
         }
         return false;
     }
@@ -487,7 +504,7 @@ final class Crawler
 
         // pakai wilayah lama bila alamat & titik tidak berubah (hemat geocoding)
         if ($old && ($old['alamat'] ?? '') === $rec['alamat'] && isset($old['akurasi'])) {
-            $sameTitik = $ll && ($old['akurasi'] === 'titik') && abs(($old['lat'] ?? 0) - $ll[0]) < 1e-6 && abs(($old['lng'] ?? 0) - $ll[1]) < 1e-6;
+            $sameTitik = $ll && ($old['akurasi'] === 'titik') && abs(($old['lat'] ?? 0) - $ll[0]) < 5e-6 && abs(($old['lng'] ?? 0) - $ll[1]) < 5e-6;
             $sameNoTitik = !$ll && $old['akurasi'] !== 'titik';
             if ($sameTitik || $sameNoTitik) {
                 foreach (['provinsi', 'pulau', 'kabkota', 'kecamatan', 'lat', 'lng', 'akurasi'] as $k) {
