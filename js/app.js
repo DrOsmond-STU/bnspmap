@@ -213,7 +213,7 @@
   let map, cluster, markersById = {}, lastRegionKey = null;
   function initMap() {
     map = L.map("map", { zoomControl: true, preferCanvas: false, minZoom: 4 }).setView([-2.5, 118], 5);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
     cluster = L.markerClusterGroup({

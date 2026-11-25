@@ -4,7 +4,7 @@ require __DIR__ . '/auth.php';
 $user = require_login();
 header('Cache-Control: no-store');
 header('X-Frame-Options: DENY');
-header('Referrer-Policy: same-origin');
+header('Referrer-Policy: strict-origin-when-cross-origin');   // tile OSM mewajibkan Referer
 $csrf = csrf_token();
 ?><!doctype html>
 <html lang="id">
@@ -206,6 +206,6 @@ $csrf = csrf_token();
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
 <script src="data.php?v=<?= filemtime(__DIR__ . '/js/lsp-data.js') ?>"></script>
-<script src="js/app.js?v=20261125"></script>
+<script src="js/app.js?v=20261125b"></script>
 </body>
 </html>
