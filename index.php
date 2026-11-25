@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require __DIR__ . '/auth.php';
+require __DIR__ . '/lib/crawl-state.php';
 $user = require_login();
 header('Cache-Control: no-store');
 header('X-Frame-Options: DENY');
@@ -19,7 +19,7 @@ $csrf = csrf_token();
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="vendor/MarkerCluster.css">
-<link rel="stylesheet" href="css/style.css?v=20261125">
+<link rel="stylesheet" href="css/style.css?v=20261125c">
 </head>
 <body>
 <header class="topbar">
@@ -46,6 +46,12 @@ $csrf = csrf_token();
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Export PDF</span>
       </button>
+      <?php if (is_admin($user)): ?>
+      <a class="btn btn-ghost" href="crawl.php" title="Crawl ulang data dari bnsp.go.id">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 12a8 8 0 11-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Update data</span>
+      </a>
+      <?php endif; ?>
       <form class="usermenu" method="post" action="logout.php">
         <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
         <span class="who" title="Masuk sebagai <?= e($user['username']) ?>">
@@ -205,7 +211,7 @@ $csrf = csrf_token();
 <script src="vendor/xlsx.full.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
-<script src="data.php?v=<?= filemtime(__DIR__ . '/js/lsp-data.js') ?>"></script>
-<script src="js/app.js?v=20261125b"></script>
+<script src="data.php?v=<?= filemtime(live_data_file()) ?>"></script>
+<script src="js/app.js?v=20261125c"></script>
 </body>
 </html>

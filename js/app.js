@@ -391,6 +391,7 @@
         ${row("Email", esc(d.email))}
         ${row("Website", web ? `<a href="${esc(web)}" target="_blank" rel="noopener">${esc(d.web)}</a>` : "")}
         ${row("Lokasi peta", esc(AKURASI[d.akurasi] || ""))}
+        ${row("Data diambil", d.diperbarui ? fmtDate(d.diperbarui) : (META.diambil ? fmtDate(META.diambil) : ""))}
         ${d.jenisPerkiraan ? row("Catatan", "Halaman detail LSP ini tidak dapat dibuka di bnsp.go.id, jadi jenis LSP diperkirakan dari namanya.") : ""}
       </dl>
       <a class="btn btn-ghost" style="justify-content:center;text-decoration:none" href="https://bnsp.go.id/lsp/${encodeURIComponent(d.slug)}" target="_blank" rel="noopener">Lihat di bnsp.go.id ↗</a>

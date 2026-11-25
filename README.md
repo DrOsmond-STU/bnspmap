@@ -58,7 +58,9 @@ data.php          menyajikan js/lsp-data.js hanya untuk pengguna yang sudah masu
 css/style.css     gaya (token warna terang/gelap, responsif)
 js/lsp-data.js    data LSP hasil unduhan (dibuat otomatis)
 js/app.js         filter, peta, grafik, tabel, export
-tools/            skrip pengambil & pengolah data
+crawl.php         halaman Pembaruan Data (crawl manual, jadwal, status, riwayat); crawl-api.php API-nya
+lib/              mesin crawl (crawler.php, regions.php, crawl-state.php) + referensi wilayah (data/)
+tools/            cron.php (pelaksana crawl dari cron), skrip Python lama, hash-password.php
 vendor/           Leaflet 1.9.4, MarkerCluster 1.5.3, Chart.js 4.4.1, SheetJS 0.18.5, jsPDF 2.5.1, jsPDF-AutoTable 3.8.2
 ```
 
@@ -76,15 +78,39 @@ Catatan:
 - Sebagian alamat di BNSP tidak lengkap, sehingga beberapa LSP masuk kelompok "Lokasi belum diketahui".
 - Beberapa halaman detail di bnsp.go.id tidak bisa dibuka (404). Untuk LSP tersebut, jenis LSP diperkirakan dari namanya dan diberi tanda "perkiraan".
 
-## Memperbarui data
+## Memperbarui data (crawl)
 
-```bash
-tools/update-data.sh
-```
+bnsp.go.id tidak punya API, jadi data diambil ulang dengan membaca halaman daftar & detail LSP (crawl).
+Admin membuka **Update data** di dashboard (`crawl.php`) lalu memilih cakupan:
 
-Skrip ini mengunduh ulang daftar & detail LSP, menentukan wilayah, lalu menulis ulang `js/lsp-data.js`.
-Butuh akses ke bnsp.go.id, nominatim.openstreetmap.org, dan registry npm. Prosesnya sekitar 30–60 menit.
-Setelah selesai, commit `js/lsp-data.js` lalu deploy ulang.
+| Cakupan | Yang diambil ulang |
+|---------|--------------------|
+| Nasional | Detail semua LSP (±2.700, ±20 menit) |
+| Per provinsi | Detail LSP di provinsi tersebut |
+| Sampai kabupaten/kota | Detail LSP di kab/kota tersebut |
+
+Pada semua cakupan, seluruh halaman daftar LSP (±130 halaman, ±1 menit) tetap dibaca untuk menemukan **LSP baru**
+(selalu ditambahkan) dan LSP yang **sudah tidak ada** di BNSP (dihapus hanya bila berada dalam cakupan dan daftar terbaca lengkap).
+Wilayah LSP yang alamat & titiknya tidak berubah dipakai ulang, sehingga geocoding hanya untuk LSP baru/berubah.
+
+Cara kerja di server:
+- Tombol **Mulai crawl** dan **jadwal otomatis** (harian/mingguan/bulanan, WIB) memasukkan pekerjaan ke antrean.
+- Cron hosting menjalankan `tools/cron.php` setiap 5 menit; skrip ini menjalankan jadwal yang jatuh tempo dan mengerjakan antrean
+  (satu per satu, dikunci dengan `flock`). Crawl berjalan sebagai proses PHP CLI, jadi tidak terkena batas waktu web.
+- Cron yang dipakai:
+  ```
+  */5 * * * * /opt/alt/php83/usr/bin/php /home/semestat/bnspmap.semestateknologiutama.com/tools/cron.php >> /home/semestat/bnspmap-config/crawler/cron.log 2>&1
+  ```
+- Status, antrean, jadwal, riwayat, log, cache geocoding, dan **data hasil crawl** disimpan di `../bnspmap-config/crawler/`
+  (di luar folder web, tidak tertimpa saat deploy). Versi data sebelumnya disimpan sebagai `data/lsp-data.prev.js`.
+  Bila belum pernah crawl, dashboard memakai `js/lsp-data.js` bawaan repo.
+- Crawl manual dari server: `php tools/cron.php --now nasional`, `--now "provinsi:Jawa Timur"`, atau
+  `--now "kabkota:Jawa Timur:Kabupaten Tuban"`.
+
+Mesin crawl ada di `lib/crawler.php` + `lib/regions.php` (PHP, setara dengan skrip Python lama di `tools/*.py`).
+Referensi wilayah `lib/data/*.csv` berasal dari [idn-area-data](https://github.com/fityannugroho/idn-area-data)
+(lisensi ODbL, lihat `lib/data/LICENSE-idn-area-data.md`). Geocoding memakai Nominatim OpenStreetMap
+(© kontributor OpenStreetMap, maks. 1 permintaan/detik).
 
 ## Format data
 

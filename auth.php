@@ -202,7 +202,7 @@ function attempt_login(string $username, string $password): ?string
     clear_failures();
     start_session();
     session_regenerate_id(true);
-    $_SESSION['user'] = ['username' => $key, 'name' => $user['name'] ?? $key];
+    $_SESSION['user'] = ['username' => $key, 'name' => $user['name'] ?? $key, 'role' => $user['role'] ?? 'admin'];
     $_SESSION['last_seen'] = time();
     $_SESSION['csrf'] = bin2hex(random_bytes(32));
     return null;
